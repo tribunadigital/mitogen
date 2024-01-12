@@ -299,6 +299,17 @@ class Kwargs(dict):
     def __reduce__(self):
         return (Kwargs, (dict(self),))
 
+AnsibleUnsafeText = None
+
+def lazy_AnsibleUnsafeText():
+    global AnsibleUnsafeText
+    if AnsibleUnsafeText is not None:
+        return AnsibleUnsafeText
+    mod = __import__("ansible.utils.unsafe_proxy", fromlist=("AnsibleUnsafeText",))
+    AnsibleUnsafeText = getattr(mod, "AnsibleUnsafeText")
+    assert type(AnsibleUnsafeText) is type, f"AnsibleUnsafeText {AnsibleUnsafeText} is not a type"
+    assert callable(AnsibleUnsafeText), f"AnsibleUnsafeText {AnsibleUnsafeText} is not callable"
+    return AnsibleUnsafeText
 
 class CallError(Error):
     """
@@ -842,9 +853,6 @@ class Message(object):
         s, n = LATIN1_CODEC.encode(s)
         return s
 
-    def _unpickle_ansible_unsafe_text(self, serialized_obj):
-        return serialized_obj
-
     def _find_global(self, module, func):
         """
         Return the class implementing `module_name.class_name` or raise
@@ -864,7 +872,7 @@ class Message(object):
             elif func == 'Kwargs':
                 return Kwargs
         elif module == 'ansible.utils.unsafe_proxy' and func == 'AnsibleUnsafeText':
-            return self._unpickle_ansible_unsafe_text
+            return lazy_AnsibleUnsafeText()
         elif module == '_codecs' and func == 'encode':
             return self._unpickle_bytes
         elif module == '__builtin__' and func == 'bytes':
